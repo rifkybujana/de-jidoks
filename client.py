@@ -153,7 +153,7 @@ def main(host, port):
     client.messages = messages
     receive.messages = messages
 
-    fromMessage.grid(row=0, column=0, columnspan=2, sticky="nsew")
+    fromMessage.grid(row=0, column=0, columnspan=3, sticky="nsew")
     fromEntry = tk.Frame(master=window)
     textInput = tk.Entry(master=fromEntry)
 
@@ -166,18 +166,74 @@ def main(host, port):
         text="Send",
         command=lambda: client.send(textInput)
     )
+    btnGdocs = tk.Button(
+        master=window,
+        text="GDocs",
+        command=lambda: openGDocs(window, btnGdocs)
+    )
 
     fromEntry.grid(row=1, column=0, padx=10, sticky="ew")
     btnSend.grid(row=1, column=1, pady=10, sticky="ew")
+    btnGdocs.grid(row=1, column=2, pady=10, sticky="ew")
 
     window.rowconfigure(0, minsize=500, weight=1)
     window.rowconfigure(1, minsize=50, weight=0)
     window.columnconfigure(0, minsize=500, weight=1)
-    window.columnconfigure(1, minsize=200, weight=0)
+    window.columnconfigure(1, minsize=100, weight=0)
+    window.columnconfigure(2, minsize=100, weight=0)
 
     window.mainloop()
 
     client.quit()
+
+
+def changeButtonState(button, window=None):
+    if button['state'] == "normal":
+        button['state'] = "disable"
+    else:
+        button['state'] = "normal"
+        if window:
+            window.destroy()
+
+
+def openGDocs(parent, button):
+    window = tk.Toplevel(parent)
+    window.title("The Jidoks (versi lite)")
+
+    fromMessage = tk.Frame(master=window)
+    scrollBar = tk.Scrollbar(master=fromMessage)
+    questions = tk.Listbox(master=fromMessage, yscrollcommand=scrollBar.set)
+    answers = tk.Listbox(master=fromMessage, yscrollcommand=scrollBar.set)
+    scrollBar.pack(side=tk.RIGHT, fill=tk.Y, expand=False)
+    questions.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    answers.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+    
+    fromMessage.grid(row=0, column=0, columnspan=2, sticky="nsew")
+    fromEntry = tk.Frame(master=window)
+    textInput = tk.Entry(master=fromEntry)
+
+    textInput.pack(fill=tk.BOTH, expand=True)
+    textInput.bind("<Return>", lambda x: print("send question"))
+    textInput.insert(0, "Write your message here.")
+
+    btnSend = tk.Button(
+        master=window,
+        text="Send",
+        command=lambda: print("send question")
+    )
+
+    fromEntry.grid(row=1, column=0, padx=10, sticky="ew")
+    btnSend.grid(row=1, column=1, pady=10, sticky="ew")
+    
+    window.rowconfigure(0, minsize=500, weight=1)
+    window.rowconfigure(1, minsize=50, weight=0)
+    window.columnconfigure(0, minsize=500, weight=1)
+    window.columnconfigure(1, minsize=100, weight=0)
+
+
+    changeButtonState(button)
+
+    window.protocol('WM_DELETE_WINDOW', lambda: changeButtonState(button, window))
 
 
 if __name__ == "__main__":
