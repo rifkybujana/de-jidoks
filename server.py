@@ -2,6 +2,7 @@ import threading
 import socket
 import argparse
 import os
+import json
 
 
 class Server (threading.Thread):
@@ -46,6 +47,12 @@ class Server (threading.Thread):
             if connection.sockname != source:
                 connection.send(message)
 
+    def sendTo(self, message, destination):
+        for connection in self.connections:
+            # send to specific client
+            if connection.sockname == destination:
+                connection.send(message)
+
     def remove_connection(self, connection):
         self.connections.remove(connection)
 
@@ -58,15 +65,54 @@ class ServerSocket(threading.Thread):
         self.server = server
 
     def run(self):
+
         while True:
+            with open('questions.json') as f:
+                data = json.load(f)
+
             try:
                 message = self.sc.recv(1024).decode('ascii')
             except:
                 message = None
 
             if message:
-                print(f"""{self.sockname} says {message}""")
-                self.server.broadcast(message, self.sockname)
+                if message == '[request]':
+                    self.server.sendTo("[response];" + json.dumps(data), self.sockname)
+                elif message.split(';')[0] == "[q]":
+                    question = message.split(';')
+                    if int(question[1]) > len(data) - 1:
+                        data.append({
+                            "question" : question[2],
+                            "answer" : ""
+                        })
+                    else:
+                        data[int(question[1])]['question'] = question[2]
+
+                    with open('questions.json', 'w') as f:
+                        f.write(json.dumps(data))
+                        f.close()
+                        
+                    self.server.broadcast(message, self.sockname)
+
+                elif message.split(';')[0] == "[a]":
+                    answer = message.split(';')
+                    if int(answer[1]) > len(data) - 1:
+                        data.append({
+                            "question" : "",
+                            "answer" : answer[2]
+                        })
+                    else:
+                        data[int(answer[1])]['answer'] = answer[2]
+
+                    with open('questions.json', 'w') as f:
+                        f.write(json.dumps(data))
+                        f.close()
+                        
+                    self.server.broadcast(message, self.sockname)
+                else:
+                    print(f"""{self.sockname} says {message}""")
+                    self.server.broadcast(message, self.sockname)
+
             else:
                 print(f"""{self.sockname} has closed the connection""")
                 self.sc.close()

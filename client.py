@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import tkinter as tk
+import json
 
 
 class Send(threading.Thread):
@@ -32,9 +33,14 @@ class Send(threading.Thread):
                 self.sock.sendall("""Server: {} has left.""".format(self.name).encode('ascii'))
                 break
 
-            # send messageto server for broadcasting
+            # send message to server for broadcasting
             else:
-                self.sock.sendall("""{} : {} """.format(self.name, message).encode('ascii'))
+                if message.split(';')[0] == '[q]':
+                    self.sock.sendall("""{} """.format(message).encode('ascii'))
+                elif message.split(';')[0] == '[a]':
+                    self.sock.sendall("""{} """.format(message).encode('ascii'))
+                else:
+                    self.sock.sendall("""{} : {} """.format(self.name, message).encode('ascii'))
 
         print('\nQuitting...')
         self.sock.close()
@@ -49,6 +55,8 @@ class Receive(threading.Thread):
         self.sock = sock
         self.name = name
         self.messages = None
+        self.questions = None
+        self.answers = None
 
     def run(self):
 
@@ -61,10 +69,38 @@ class Receive(threading.Thread):
                 message = None
 
             if message:
-                if self.messages:
-                    self.messages.insert(tk.END, message)
-                    print('\r{}\n{}: '.format(message, self.name), end='')
+                if message.split(';')[0] == '[response]':
+                    data = json.loads(message.split(';')[1])
+                    for i, item in enumerate(data):
+                        self.questions.insert(i, item["question"])
+                        self.answers.insert(i, item["answer"])
+                    
+                    self.answers.insert(tk.END, '')
+                    self.questions.insert(tk.END, '')
+                    
+                elif message.split(';')[0] == '[q]':
+                    question = message.split(';')
+                    if self.questions:
+                        self.questions.delete(int(question[1]))
+                        self.questions.insert(int(question[1]), question[2])
+                        self.answers.insert(tk.END, '')
+                        self.questions.insert(tk.END, '')
+                    
+                    print('\rask {}\n{}: '.format(question[2], self.name), end='')
+                    
+                elif message.split(';')[0] == '[a]':
+                    answer = message.split(';')
+                    if self.answers:
+                        self.answers.delete(int(answer[1]))
+                        self.answers.insert(int(answer[1]), answer[2])
+                        self.answers.insert(tk.END, '')
+                        self.questions.insert(tk.END, '')
+                    
+                    print('\ranswer question {} with {}\n{}: '.format(answer[1], answer[2], self.name), end='')
                 else:
+                    if self.messages:
+                        self.messages.insert(tk.END, message)
+
                     print('\r{}\n{}: '.format(message, self.name), end='')
             else:
                 print('\n Lost connection to the server!')
@@ -85,6 +121,8 @@ class Client:
         )
         self.name = None
         self.messages = None
+        self.questions = None
+        self.answers = None
 
     def start(self):
         print('Trying to connect to {}:{}....'.format(self.host, self.port))
@@ -128,6 +166,28 @@ class Client:
         else:
             self.sock.sendall('{}: {}'.format(self.name, message).encode('ascii'))
 
+    def sendQnA(self, qIndex, aIndex, message):
+        if len(qIndex) > 0:
+            self.questions.delete(qIndex[0])
+            self.questions.insert(qIndex[0], message)
+            self.answers.insert(tk.END, '')
+            self.questions.insert(tk.END, '')
+            self.questions.selection_set(tk.END)
+
+            self.sock.sendall('[q];{};{}'.format(qIndex[0], message).encode('ascii'))
+
+        elif len(aIndex) > 0:
+            self.answers.delete(aIndex[0])
+            self.answers.insert(aIndex[0], message)
+            self.answers.insert(tk.END, '')
+            self.questions.insert(tk.END, '')
+            self.answers.selection_set(tk.END)
+
+            self.sock.sendall('[a];{};{}'.format(aIndex[0], message).encode('ascii'))
+
+    def requestData(self):
+        self.sock.sendall('[request]'.encode('ascii'))
+        
     def quit(self):
         self.sock.sendall('Server: {} has left the chat'.format(self.name).encode('ascii'))
         print('\nQuitting...')
@@ -169,7 +229,7 @@ def main(host, port):
     btnGdocs = tk.Button(
         master=window,
         text="GDocs",
-        command=lambda: openGDocs(window, btnGdocs)
+        command=lambda: openGDocs(window, btnGdocs, client, receive)
     )
 
     fromEntry.grid(row=1, column=0, padx=10, sticky="ew")
@@ -196,7 +256,7 @@ def changeButtonState(button, window=None):
             window.destroy()
 
 
-def openGDocs(parent, button):
+def openGDocs(parent, button, client, receive):
     window = tk.Toplevel(parent)
     window.title("The Jidoks (versi lite)")
 
@@ -207,19 +267,44 @@ def openGDocs(parent, button):
     scrollBar.pack(side=tk.RIGHT, fill=tk.Y, expand=False)
     questions.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     answers.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-    
+
+    client.answers = answers
+    client.questions = questions
+
+    receive.answers = answers
+    receive.questions = questions
+
+    client.requestData()
+
+    answers.insert(0, "")
+    questions.insert(0, "")
+
+    answers.bind('<<ListboxSelect>>', lambda x: questions.selection_clear(0))
+    questions.bind('<<ListboxSelect>>', lambda x: answers.selection_clear(0))
+
     fromMessage.grid(row=0, column=0, columnspan=2, sticky="nsew")
     fromEntry = tk.Frame(master=window)
     textInput = tk.Entry(master=fromEntry)
 
     textInput.pack(fill=tk.BOTH, expand=True)
-    textInput.bind("<Return>", lambda x: print("send question"))
-    textInput.insert(0, "Write your message here.")
+    textInput.bind(
+        "<Return>", 
+        lambda: client.sendQnA(
+            questions.curselection(), 
+            answers.curselection(), 
+            textInput.get()
+        )
+    )
+    textInput.insert(0, "Write your question/answer here.")
 
     btnSend = tk.Button(
         master=window,
         text="Send",
-        command=lambda: print("send question")
+        command=lambda: client.sendQnA(
+            questions.curselection(), 
+            answers.curselection(), 
+            textInput.get()
+        )
     )
 
     fromEntry.grid(row=1, column=0, padx=10, sticky="ew")
@@ -229,7 +314,6 @@ def openGDocs(parent, button):
     window.rowconfigure(1, minsize=50, weight=0)
     window.columnconfigure(0, minsize=500, weight=1)
     window.columnconfigure(1, minsize=100, weight=0)
-
 
     changeButtonState(button)
 
