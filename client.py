@@ -172,7 +172,7 @@ class Client:
             self.questions.insert(qIndex[0], message)
             self.answers.insert(tk.END, '')
             self.questions.insert(tk.END, '')
-            self.questions.selection_set(tk.END)
+            self.questions.selection_set(qIndex[0])
 
             self.sock.sendall('[q];{};{}'.format(qIndex[0], message).encode('ascii'))
 
@@ -181,7 +181,7 @@ class Client:
             self.answers.insert(aIndex[0], message)
             self.answers.insert(tk.END, '')
             self.questions.insert(tk.END, '')
-            self.answers.selection_set(tk.END)
+            self.answers.selection_set(aIndex[0])
 
             self.sock.sendall('[a];{};{}'.format(aIndex[0], message).encode('ascii'))
 
