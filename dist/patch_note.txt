@@ -1,0 +1,10 @@
+Version 0.0.1
+- Fully functional chat system via local networks
+
+Version 0.0.2
+- Fixed Bug:
+	- Server can't connect anymore client when a client has disconnected [Fixed]
+	- Application not disconnected after the application close, except by writing 'QUIT' [Fixed]
+
+Version 0.0.3
+- Auto close all client when server are turned off
