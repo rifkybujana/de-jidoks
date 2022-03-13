@@ -8,3 +8,11 @@ Version 0.0.2
 
 Version 0.0.3
 - Auto close all client when server are turned off
+
+Version 0.1.0
+- Add new feature (The Jidoks!)
+  The Jidoks is a feature that give you ability to connect with others by asking and answering question more easily
+
+Version 0.2.0
+- A lot of bug fixing, a lot....
+- Add more bug

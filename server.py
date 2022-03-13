@@ -47,6 +47,11 @@ class Server (threading.Thread):
             if connection.sockname != source:
                 connection.send(message)
 
+    def serverBroadcast(self, message):
+        for connection in self.connections:
+            # send to all connected client
+            connection.send(message)
+
     def sendTo(self, message, destination):
         for connection in self.connections:
             # send to specific client
@@ -62,6 +67,7 @@ class ServerSocket(threading.Thread):
         super().__init__()
         self.sc = sc
         self.sockname = sockname
+        self.username = None
         self.server = server
 
     def run(self):
@@ -76,17 +82,26 @@ class ServerSocket(threading.Thread):
                 message = None
 
             if message:
-                if message == '[request]':
+                if message.split(':')[0] == '[loginos]':
+                    if message.split(':')[1].lower() in [connection.username for connection in self.server.connections]:
+                        self.sc.close()
+                    else:
+                        self.username = message.split(':')[1].lower()
+                        self.server.broadcast("Server: {} has joined the chat".format(self.username), self.sockname)
+                elif message == '[request]':
                     self.server.sendTo("[response];" + json.dumps(data), self.sockname)
                 elif message.split(';')[0] == "[q]":
                     question = message.split(';')
-                    if int(question[1]) > len(data) - 1:
+                    if int(question[1]) in [i["id"] for i in data]:
+                        for i in data:
+                            if i['id'] == int(question[1]):
+                                i['question'] = question[2]
+                    else:
                         data.append({
+                            "id" : int(question[1]),
                             "question" : question[2],
                             "answer" : ""
                         })
-                    else:
-                        data[int(question[1])]['question'] = question[2]
 
                     with open('questions.json', 'w') as f:
                         f.write(json.dumps(data))
@@ -96,13 +111,16 @@ class ServerSocket(threading.Thread):
 
                 elif message.split(';')[0] == "[a]":
                     answer = message.split(';')
-                    if int(answer[1]) > len(data) - 1:
+                    if int(answer[1]) in [i["id"] for i in data]:
+                        for i in data:
+                            if i['id'] == int(answer[1]):
+                                i['answer'] = answer[2]
+                    else:
                         data.append({
+                            "id" : int(answer[1]),
                             "question" : "",
                             "answer" : answer[2]
                         })
-                    else:
-                        data[int(answer[1])]['answer'] = answer[2]
 
                     with open('questions.json', 'w') as f:
                         f.write(json.dumps(data))
@@ -133,6 +151,43 @@ def exit(server):
 
             print("Shutting down the server...")
             os._exit(0)
+
+        if ipt.split(' ')[0] == "/ban" and ipt.split(' ')[1][0] == '1':
+            ip = ipt.split(' ')[1]
+            if ip in [connection.sockname[0] for connection in server.connections]:
+                for connection in server.connections:
+                    if connection.sockname[0] == ip:
+                        server.broadcast("Server: {} have been banned from the server".format(connection.username), connection.sockname)
+                        connection.sc.close()
+                        
+            else:
+                print("[ALERT!] IP unavailable!")
+        elif ipt.split(' ')[0] == "/ban":
+            username = ipt.split(' ')[1]
+            if username in [connection.username for connection in server.connections]:
+                for connection in server.connections:
+                    if connection.username == username:
+                        server.broadcast("Server: {} have been banned from the server".format(connection.username), connection.sockname)
+                        connection.sc.close()
+
+            else:
+                print("[ALERT!] username unvailable")
+
+        if ipt.split(' ')[0] == "/list":
+            print ("--------------------------------")
+            print ("List user:")
+            for i, connection in enumerate(server.connections):
+                print("{}. {}\t{}".format(i, connection.username, connection.sockname[0]))
+            
+            print ("--------------------------------")
+
+        if ipt.split(' ')[0] == "/clear_gdocs":
+            with open("questions.json", "w") as f:
+                f.write("[{\"id\":0,\"question\":\"\",\"answer\":\"\"}]")
+                f.close()
+
+            print("gdocs cleared")
+            server.serverBroadcast("[response];" + "[{\"id\": 0, \"question\": \"\", \"answer\": \"\"}]")
 
 
 if __name__ == "__main__":
