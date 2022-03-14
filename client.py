@@ -88,18 +88,19 @@ class Receive(threading.Thread):
 
             if message:
                 if message.split(';')[0] == '[response]':
-                    self.questions.delete(0, tk.END)
-                    self.answers.delete(0, tk.END)
-
                     data = json.loads(message.split(';')[1])
 
-                    for item in data:
-                        self.questions.insert(item["id"], item["question"])
-                        self.answers.insert(item["id"], item["answer"])
+                    if int(message.split(';')[2]) == 0:
+                        self.questions.delete(0, tk.END)
+                        self.answers.delete(0, tk.END)
+
+                    self.questions.insert(data["id"], data["question"])
+                    self.answers.insert(data["id"], data["answer"])
                     
-                    if len(self.questions.get(tk.END)) > 0:
-                        self.answers.insert(tk.END, '')
-                        self.questions.insert(tk.END, '')
+                    if self.questions:
+                        if len(self.questions.get(tk.END)) > 0 or self.questions.size() <= 0:
+                            self.answers.insert(tk.END, '')
+                            self.questions.insert(tk.END, '')
                     
                 elif message.split(';')[0] == '[q]':
                     question = message.split(';')
@@ -107,6 +108,11 @@ class Receive(threading.Thread):
                         self.questions.delete(int(question[1]))
                         self.questions.insert(int(question[1]), question[2])
                     
+                    if self.questions:
+                        if len(self.questions.get(tk.END)) > 0 or self.questions.size() <= 0:
+                            self.answers.insert(tk.END, '')
+                            self.questions.insert(tk.END, '')
+
                     print('\rask {}\n{}: '.format(question[2], self.name), end='')
                     
                 elif message.split(';')[0] == '[a]':
@@ -295,6 +301,12 @@ def openGDocs(parent, button, client, receive):
     scrollBar.pack(side=tk.RIGHT, fill=tk.Y, expand=False)
     questions.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     answers.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+    
+    client.answers = answers
+    client.questions = questions
+
+    receive.answers = answers
+    receive.questions = questions
 
     def scroll(*args):
         questions.yview(*args)
@@ -307,12 +319,6 @@ def openGDocs(parent, button, client, receive):
 
     questions.bind("<MouseWheel>", lambda e: mousewheel(e, answers))
     answers.bind("<MouseWheel>", lambda e: mousewheel(e, questions))
-
-    client.answers = answers
-    client.questions = questions
-
-    receive.answers = answers
-    receive.questions = questions
 
     client.requestData()
 

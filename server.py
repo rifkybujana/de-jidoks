@@ -3,6 +3,7 @@ import socket
 import argparse
 import os
 import json
+import time
 
 
 class Server (threading.Thread):
@@ -73,9 +74,6 @@ class ServerSocket(threading.Thread):
     def run(self):
 
         while True:
-            with open('questions.json') as f:
-                data = json.load(f)
-
             try:
                 message = self.sc.recv(1024).decode('ascii')
             except:
@@ -89,13 +87,20 @@ class ServerSocket(threading.Thread):
                         self.username = message.split(':')[1].lower()
                         self.server.broadcast("Server: {} has joined the chat".format(self.username), self.sockname)
                 elif message == '[request]':
-                    self.server.sendTo("[response];" + json.dumps(data), self.sockname)
+                    with open('questions.json') as f:
+                        data = json.load(f)
+
+                    for i, j in enumerate(data):
+                        self.server.sendTo("[response];" + json.dumps(j) + ";{}".format(i), self.sockname)
+                        time.sleep(0.1) 
                 elif message.split(';')[0] == "[q]":
+                    with open('questions.json') as f:
+                        data = json.load(f)
                     question = message.split(';')
                     if int(question[1]) in [i["id"] for i in data]:
-                        for i in data:
-                            if i['id'] == int(question[1]):
-                                i['question'] = question[2]
+                        for i in range(len(data)):
+                            if data[i]['id'] == int(question[1]):
+                                data[i]['question'] = question[2]
                     else:
                         data.append({
                             "id" : int(question[1]),
@@ -110,17 +115,13 @@ class ServerSocket(threading.Thread):
                     self.server.broadcast(message, self.sockname)
 
                 elif message.split(';')[0] == "[a]":
+                    with open('questions.json') as f:
+                        data = json.load(f)
+
                     answer = message.split(';')
-                    if int(answer[1]) in [i["id"] for i in data]:
-                        for i in data:
-                            if i['id'] == int(answer[1]):
-                                i['answer'] = answer[2]
-                    else:
-                        data.append({
-                            "id" : int(answer[1]),
-                            "question" : "",
-                            "answer" : answer[2]
-                        })
+                    for i in range(len(data)):
+                        if data[i]['id'] == int(answer[1]):
+                            data[i]['answer'] = answer[2]
 
                     with open('questions.json', 'w') as f:
                         f.write(json.dumps(data))
@@ -187,7 +188,7 @@ def exit(server):
                 f.close()
 
             print("gdocs cleared")
-            server.serverBroadcast("[response];" + "[{\"id\": 0, \"question\": \"\", \"answer\": \"\"}]")
+            server.serverBroadcast("[response];{\"id\": 0, \"question\": \"\", \"answer\": \"\"};0")
 
 
 if __name__ == "__main__":
